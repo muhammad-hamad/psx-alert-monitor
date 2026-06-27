@@ -1,0 +1,19 @@
+{
+  "name": "PSX Alert Monitor",
+  "short_name": "PSX Alerts",
+  "description": "Live Pakistan Stock Exchange price alerts",
+  "start_url": "/psx-alert-monitor/",
+  "scope": "/psx-alert-monitor/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "icons": [
+    {
+      "src": "https://dps.psx.com.pk/static/images/logo-200.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

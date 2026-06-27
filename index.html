@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSX Alert Monitor</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PSX Alerts">
+<meta name="theme-color" content="#0a0f1e">
+<link rel="manifest" href="manifest.json">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#0a0f1e; --surface:#111827; --surface2:#1a2332; --border:#1f2d40;
+    --accent:#00d4aa; --accent2:#3b82f6; --danger:#ef4444; --warn:#f59e0b;
+    --up:#10b981; --down:#ef4444; --text:#e2e8f0; --muted:#64748b;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+  header{
+    background:var(--surface);border-bottom:1px solid var(--border);
+    padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:100;
+  }
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.95rem;}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,.5)}50%{box-shadow:0 0 0 7px rgba(0,212,170,0)}}
+  .pkt{font-size:.73rem;color:var(--muted);font-family:var(--mono);}
+
+  .page{max-width:780px;margin:0 auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.2rem;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .card-header{padding:.85rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .card-title{font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+
+  .add-form{padding:1rem 1.2rem;display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:.7rem;align-items:end;}
+  .fg{display:flex;flex-direction:column;gap:.32rem;}
+  label{font-size:.68rem;font-weight:500;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;}
+  input{
+    background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);padding:.48rem .72rem;font-size:.84rem;font-family:inherit;outline:none;transition:border-color .2s;
+  }
+  input:focus{border-color:var(--accent);}
+  input::placeholder{color:var(--muted);}
+
+  .btn{padding:.48rem 1rem;border:none;border-radius:8px;font-size:.84rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-primary:hover{background:#00bfa0;}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-sm{padding:.28rem .6rem;font-size:.7rem;border-radius:6px;}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-danger{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.25);}
+  .btn-danger:hover{background:rgba(239,68,68,.22);}
+
+  .stock-list{display:flex;flex-direction:column;}
+  .stock-row{
+    display:grid;grid-template-columns:1.6fr 1fr 1.2fr 1fr auto;
+    align-items:center;padding:.8rem 1.2rem;
+    border-bottom:1px solid rgba(31,45,64,.6);gap:.5rem;transition:background .15s;
+  }
+  .stock-row:last-child{border-bottom:none;}
+  .stock-row:hover{background:rgba(255,255,255,.02);}
+  .stock-row.fetching{opacity:.5;}
+  .stock-row.breach-low{border-left:3px solid var(--danger);}
+  .stock-row.breach-high{border-left:3px solid var(--up);}
+
+  .sym{font-family:var(--mono);font-weight:600;font-size:.88rem;}
+  .sym-sub{font-size:.65rem;color:var(--muted);margin-top:2px;}
+  .price-val{font-family:var(--mono);font-size:.9rem;font-weight:500;}
+  .price-sub{font-size:.67rem;margin-top:2px;}
+  .up{color:var(--up);} .down{color:var(--down);}
+
+  .alert-badges{display:flex;flex-direction:column;gap:4px;}
+  .abadge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:5px;font-size:.68rem;font-family:var(--mono);}
+  .ab-low{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2);}
+  .ab-high{background:rgba(16,185,129,.1);color:#6ee7b7;border:1px solid rgba(16,185,129,.2);}
+  .ab-none{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+
+  .spill{font-size:.67rem;font-weight:600;padding:3px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;}
+  .sp-ok{background:rgba(16,185,129,.1);color:var(--up);}
+  .sp-low{background:rgba(239,68,68,.15);color:var(--danger);animation:blink 1s infinite;}
+  .sp-high{background:rgba(245,158,11,.15);color:var(--warn);animation:blink 1s infinite;}
+  .sp-loading{background:var(--surface2);color:var(--muted);}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.45}}
+
+  .row-actions{display:flex;gap:5px;justify-content:flex-end;}
+  .empty-state{padding:2.5rem;text-align:center;color:var(--muted);font-size:.8rem;line-height:1.8;}
+
+  .refresh-bar{
+    padding:.6rem 1.2rem;background:rgba(0,212,170,.04);
+    border-top:1px solid var(--border);display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;
+  }
+  .refresh-bar label{font-size:.73rem;color:var(--muted);}
+  select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.28rem .55rem;font-size:.73rem;font-family:inherit;outline:none;}
+  .last-upd{font-size:.68rem;color:var(--muted);font-family:var(--mono);margin-left:auto;}
+
+  .notif-log{max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem;padding:.85rem 1.2rem;}
+  .notif-log::-webkit-scrollbar{width:3px;}
+  .notif-log::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  .ni{
+    display:flex;align-items:flex-start;gap:.55rem;padding:.55rem .75rem;
+    border-radius:8px;background:var(--surface2);border-left:3px solid transparent;
+    animation:fadeIn .3s ease;font-size:.76rem;
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+  .ni.n-low{border-left-color:var(--danger);}
+  .ni.n-high{border-left-color:var(--up);}
+  .ni.n-info{border-left-color:var(--accent2);}
+  .ni-msg{flex:1;line-height:1.45;}
+  .ni-time{font-size:.63rem;color:var(--muted);margin-top:2px;font-family:var(--mono);}
+  .log-empty{padding:1.4rem;text-align:center;color:var(--muted);font-size:.76rem;}
+
+  .perm-banner{
+    background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);
+    border-radius:10px;padding:.75rem 1rem;display:flex;align-items:center;gap:.7rem;font-size:.78rem;
+  }
+  .perm-banner.hidden{display:none;}
+
+  #toasts{position:fixed;bottom:1.2rem;right:1.2rem;display:flex;flex-direction:column;gap:.45rem;z-index:999;}
+  .toast{
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:.8rem 1rem;min-width:250px;max-width:320px;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);display:flex;gap:.65rem;align-items:flex-start;
+    animation:slideUp .3s ease;
+  }
+  @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .toast.t-low{border-left:4px solid var(--danger);}
+  .toast.t-high{border-left:4px solid var(--up);}
+  .toast.t-info{border-left:4px solid var(--accent2);}
+  .toast-icon{font-size:1.05rem;}
+  .toast-title{font-size:.8rem;font-weight:600;}
+  .toast-body{font-size:.7rem;color:var(--muted);margin-top:1px;}
+
+  @media(max-width:600px){
+    .add-form{grid-template-columns:1fr 1fr;}
+    .add-form .fg:first-child{grid-column:1/-1;}
+    .add-form button{grid-column:1/-1;}
+    .stock-row{grid-template-columns:1fr 1fr;gap:.35rem;}
+    .stock-row>*:nth-child(n+4){display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="live-dot"></div>
+    PSX Alert Monitor
+    <span style="color:var(--muted);font-weight:400;font-size:.78rem">· JS Global</span>
+  </div>
+  <div class="pkt" id="pkt"></div>
+</header>
+
+<div class="page">
+
+  <div class="perm-banner" id="perm-banner">
+    <span>🔔</span>
+    <span style="flex:1">Enable browser notifications to get alerted even when this tab is in the background.</span>
+    <button class="btn btn-sm" style="background:var(--accent2);color:#fff;border:none;white-space:nowrap" onclick="reqNotif()">Enable</button>
+    <button class="btn btn-sm btn-ghost" onclick="document.getElementById('perm-banner').classList.add('hidden')">✕</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Add Stock Alert</span>
+      <span style="font-size:.68rem;color:var(--muted)">Live prices via Claude AI · PSX</span>
+    </div>
+    <div class="add-form">
+      <div class="fg">
+        <label>PSX Symbol</label>
+        <input id="i-sym" type="text" placeholder="e.g. OGDC, HBL, LUCK" style="text-transform:uppercase" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label>Alert Below (PKR)</label>
+        <input id="i-low" type="number" placeholder="Lower limit" step="0.01" min="0">
+      </div>
+      <div class="fg">
+        <label>Alert Above (PKR)</label>
+        <input id="i-high" type="number" placeholder="Upper limit" step="0.01" min="0">
+      </div>
+      <button class="btn btn-primary" id="add-btn" onclick="addStock()" style="align-self:end">+ Add</button>
+    </div>
+    <div style="padding:0 1.2rem .8rem;font-size:.68rem;color:var(--muted)">
+      Set a lower limit, upper limit, or both. You'll be notified the moment either is breached.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Watchlist</span>
+      <span id="wl-count" style="font-size:.7rem;color:var(--muted)"></span>
+    </div>
+    <div class="stock-list" id="stock-list">
+      <div class="empty-state">No stocks added yet.<br>Type a PSX symbol above and set your alert limits.</div>
+    </div>
+    <div class="refresh-bar">
+      <label>Auto-refresh every</label>
+      <select id="interval-sel" onchange="resetLoop()">
+        <option value="30">30 sec</option>
+        <option value="60" selected>1 min</option>
+        <option value="120">2 min</option>
+        <option value="300">5 min</option>
+      </select>
+      <button class="btn btn-sm btn-ghost" onclick="refreshAll()" id="ref-btn">↻ Refresh Now</button>
+      <span class="last-upd" id="last-upd">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Notification Log</span>
+      <button class="btn btn-sm btn-ghost" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="notif-log" id="notif-log">
+      <div class="log-empty">Alerts will appear here when your price limits are breached.</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const stocks = [];
+let loopId = null;
+
+// Clock
+function tick() {
+  const el = document.getElementById('pkt');
+  const pkt = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Karachi'}));
+  const h = pkt.getHours(), m = pkt.getMinutes(), d = pkt.getDay();
+  let open = false;
+  if (d>=1&&d<=4) open=(h>9||(h===9&&m>=30))&&h<15;
+  if (d===5) open=((h>9||(h===9&&m>=15))&&h<12)||((h===14&&m>=30)||(h>=14&&h<16));
+  el.innerHTML = `PKT ${pkt.toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} &nbsp;·&nbsp; <span style="color:${open?'var(--up)':'var(--muted)'}">${open?'● Open':'○ Closed'}</span>`;
+}
+setInterval(tick, 1000); tick();
+
+// Notification permission
+function checkBanner() {
+  if (!('Notification' in window) || Notification.permission==='granted')
+    document.getElementById('perm-banner').classList.add('hidden');
+}
+async function reqNotif() {
+  const r = await Notification.requestPermission();
+  if (r==='granted') {
+    document.getElementById('perm-banner').classList.add('hidden');
+    toast('🔔','Notifications enabled','You\'ll be alerted even in background.','t-info');
+  }
+}
+checkBanner();
+
+// Fetch real price via Claude AI with web search
+async function fetchPrice(sym) {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        system:`You are a PSX stock price lookup tool. Search for the current price of the given stock on the Pakistan Stock Exchange.
+Respond ONLY with a valid JSON object and nothing else — no markdown, no explanation:
+{"price":<number>,"change":<number>,"changePct":<number>}
+Where price is the latest trade price in PKR, change is today's price change in PKR, changePct is the percentage change.
+If you cannot find the stock, return: {"error":"not found"}`,
+        messages:[{role:'user',content:`Current price of ${sym} on Pakistan Stock Exchange PSX today`}]
+      })
+    });
+    const data = await r.json();
+    const tb = data.content?.find(b=>b.type==='text');
+    if (!tb) throw new Error('no text');
+    const clean = tb.text.trim().replace(/```[\s\S]*?```/g,'').replace(/```/g,'').trim();
+    // find first JSON object in response
+    const match = clean.match(/\{[\s\S]*?\}/);
+    if (!match) throw new Error('no json');
+    const parsed = JSON.parse(match[0]);
+    if (parsed.error) throw new Error(parsed.error);
+    return parsed;
+  } catch(e) {
+    return null;
+  }
+}
+
+// Add stock
+async function addStock() {
+  const sym = document.getElementById('i-sym').value.trim().toUpperCase();
+  const low = parseFloat(document.getElementById('i-low').value)||null;
+  const high = parseFloat(document.getElementById('i-high').value)||null;
+
+  if (!sym) return toast('⚠️','Enter a PSX symbol','','t-info');
+  if (!low&&!high) return toast('⚠️','Set at least one alert limit','Lower or upper (or both)','t-info');
+  if (low&&high&&low>=high) return toast('⚠️','Invalid range','Lower limit must be less than upper limit','t-info');
+  if (stocks.find(s=>s.sym===sym)) return toast('⚠️',sym+' already added','','t-info');
+
+  const btn = document.getElementById('add-btn');
+  btn.disabled=true; btn.textContent='Fetching price…';
+
+  const result = await fetchPrice(sym);
+  btn.disabled=false; btn.textContent='+ Add';
+
+  if (!result) {
+    toast('❌','Could not get price for '+sym,'Check the symbol is correct (e.g. OGDC, HBL, LUCK)','t-info');
+    return;
+  }
+
+  stocks.push({sym, low, high, price:result.price, change:result.change, changePct:result.changePct, status:'ok', lastFetched:new Date()});
+  document.getElementById('i-sym').value='';
+  document.getElementById('i-low').value='';
+  document.getElementById('i-high').value='';
+
+  log('n-info',`📋 Added <strong>${sym}</strong> — PKR ${result.price.toFixed(2)}`);
+  renderList();
+  checkBreaches(stocks[stocks.length-1]);
+}
+
+// Refresh all prices
+async function refreshAll() {
+  if (!stocks.length) return;
+  const btn = document.getElementById('ref-btn');
+  btn.textContent='↻ Refreshing…'; btn.disabled=true;
+
+  for (const s of stocks) {
+    const row = document.getElementById('row-'+s.sym);
+    if (row) row.classList.add('fetching');
+
+    const r = await fetchPrice(s.sym);
+
+    if (row) row.classList.remove('fetching');
+    if (r) {
+      s.prevPrice = s.price;
+      s.price = r.price;
+      s.change = r.change;
+      s.changePct = r.changePct;
+      s.lastFetched = new Date();
+      checkBreaches(s);
+      updateRow(s);
+    }
+  }
+
+  document.getElementById('last-upd').textContent = 'Updated '+new Date().toLocaleTimeString('en-PK');
+  btn.textContent='↻ Refresh Now'; btn.disabled=false;
+}
+
+function resetLoop() {
+  if (loopId) clearInterval(loopId);
+  const sec = parseInt(document.getElementById('interval-sel').value);
+  if (stocks.length) loopId = setInterval(refreshAll, sec*1000);
+}
+
+// Breach check
+function checkBreaches(s) {
+  const prev = s.status;
+  if (s.low&&s.price<=s.low) {
+    s.status='breach-low';
+    if (prev!=='breach-low') {
+      log('n-low',`🔴 <strong>${s.sym}</strong> dropped to PKR ${s.price.toFixed(2)} — below your limit of PKR ${s.low}`);
+      toast('🔴',`${s.sym} — BELOW LIMIT`,`PKR ${s.price.toFixed(2)} ≤ your limit PKR ${s.low}`,'t-low');
+      browserNotif(s.sym,`⬇ Price PKR ${s.price.toFixed(2)} dropped below your limit of PKR ${s.low}`);
+    }
+  } else if (s.high&&s.price>=s.high) {
+    s.status='breach-high';
+    if (prev!=='breach-high') {
+      log('n-high',`🟢 <strong>${s.sym}</strong> rose to PKR ${s.price.toFixed(2)} — above your limit of PKR ${s.high}`);
+      toast('🟢',`${s.sym} — ABOVE LIMIT`,`PKR ${s.price.toFixed(2)} ≥ your limit PKR ${s.high}`,'t-high');
+      browserNotif(s.sym,`⬆ Price PKR ${s.price.toFixed(2)} rose above your limit of PKR ${s.high}`);
+    }
+  } else {
+    if (prev&&prev!=='ok') log('n-info',`✅ <strong>${s.sym}</strong> back within range — PKR ${s.price.toFixed(2)}`);
+    s.status='ok';
+  }
+}
+
+function browserNotif(sym, body) {
+  if ('Notification' in window && Notification.permission==='granted')
+    new Notification('PSX Alert — '+sym, {body, icon:'https://dps.psx.com.pk/static/images/logo-200.png'});
+}
+
+// Render
+function renderList() {
+  const el = document.getElementById('stock-list');
+  document.getElementById('wl-count').textContent = stocks.length ? stocks.length+' stock'+(stocks.length>1?'s':'') : '';
+  if (!stocks.length) { el.innerHTML='<div class="empty-state">No stocks added yet.<br>Type a PSX symbol above and set your alert limits.</div>'; return; }
+  el.innerHTML = stocks.map(rowHTML).join('');
+  resetLoop();
+}
+
+function updateRow(s) {
+  const el = document.getElementById('row-'+s.sym);
+  if (el) el.outerHTML = rowHTML(s);
+}
+
+function rowHTML(s) {
+  const dir = (s.change||0)>=0?'up':'down';
+  const arrow = (s.change||0)>=0?'▲':'▼';
+  const chgStr = s.change!=null ? `${arrow} ${Math.abs(s.change).toFixed(2)} (${Math.abs(s.changePct||0).toFixed(2)}%)` : '—';
+  const lowBadge = s.low ? `<span class="abadge ab-low">↓ PKR ${s.low}</span>` : `<span class="abadge ab-none">No low alert</span>`;
+  const highBadge = s.high ? `<span class="abadge ab-high">↑ PKR ${s.high}</span>` : `<span class="abadge ab-none">No high alert</span>`;
+  const pillCls = s.status==='breach-low'?'sp-low':s.status==='breach-high'?'sp-high':'sp-ok';
+  const pillLbl = s.status==='breach-low'?'⚠ BELOW LOW':s.status==='breach-high'?'⚠ ABOVE HIGH':'✓ OK';
+  const rowCls = s.status==='breach-low'?'breach-low':s.status==='breach-high'?'breach-high':'';
+  return `<div class="stock-row ${rowCls}" id="row-${s.sym}">
+    <div>
+      <div class="sym">${s.sym}</div>
+      <div class="sym-sub">${s.lastFetched?s.lastFetched.toLocaleTimeString('en-PK'):'—'}</div>
+    </div>
+    <div>
+      <div class="price-val">PKR ${s.price!=null?s.price.toFixed(2):'—'}</div>
+      <div class="price-sub ${dir}">${chgStr}</div>
+    </div>
+    <div class="alert-badges">${lowBadge}${highBadge}</div>
+    <div><span class="spill ${pillCls}">${pillLbl}</span></div>
+    <div class="row-actions">
+      <button class="btn btn-sm btn-danger" onclick="removeStock('${s.sym}')">✕</button>
+    </div>
+  </div>`;
+}
+
+function removeStock(sym) {
+  const i = stocks.findIndex(s=>s.sym===sym);
+  if (i!==-1) stocks.splice(i,1);
+  renderList();
+}
+
+// Log
+function log(type, html) {
+  const el = document.getElementById('notif-log');
+  const empty = el.querySelector('.log-empty');
+  if (empty) empty.remove();
+  const d = document.createElement('div');
+  d.className=`ni ${type}`;
+  d.innerHTML=`<div style="flex:1"><div class="ni-msg">${html}</div><div class="ni-time">${new Date().toLocaleTimeString('en-PK')}</div></div>`;
+  el.prepend(d);
+}
+function clearLog() { document.getElementById('notif-log').innerHTML='<div class="log-empty">Log cleared.</div>'; }
+
+// Toast
+function toast(icon, title, body, type) {
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;
+  t.innerHTML=`<div class="toast-icon">${icon}</div><div><div class="toast-title">${title}</div><div class="toast-body">${body}</div></div>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .35s';t.style.opacity='0';setTimeout(()=>t.remove(),350);},5000);
+}
+
+document.getElementById('i-sym').addEventListener('keydown',e=>{if(e.key==='Enter')addStock();});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
